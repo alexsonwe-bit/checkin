@@ -1,0 +1,865 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Check-in</title>
+<meta name="theme-color" content="#1f4fd8">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Check-in">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-192.png">
+<style>
+:root {
+  --bg: #f4f6fa;
+  --card: #ffffff;
+  --text: #141a26;
+  --muted: #667085;
+  --line: #e3e7ef;
+  --accent: #1f4fd8;
+  --in: #12875a;
+  --in-soft: #e3f5ec;
+  --out: #c2410c;
+  --out-soft: #fdeee5;
+  --warn: #b45309;
+  --warn-soft: #fef3c7;
+  --err: #c0262d;
+  --radius: 16px;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0e121a;
+    --card: #181e2a;
+    --text: #eef1f7;
+    --muted: #98a2b3;
+    --line: #283041;
+    --accent: #6f95ff;
+    --in: #3ccf8e;
+    --in-soft: #11291f;
+    --out: #ff8a4c;
+    --out-soft: #2e1a10;
+    --warn: #f5b84a;
+    --warn-soft: #2d2410;
+    --err: #ff6b70;
+  }
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { margin: 0; height: 100%; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font: 16px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+button, input, select { font: inherit; color: inherit; }
+.screen { display: none; min-height: 100%; }
+.screen.on { display: block; }
+.wrap {
+  max-width: 480px; margin: 0 auto;
+  padding: calc(16px + env(safe-area-inset-top)) 16px calc(24px + env(safe-area-inset-bottom));
+}
+h1 { font-size: 24px; margin: 8px 0 4px; }
+.sub { color: var(--muted); margin: 0 0 20px; }
+.card {
+  background: var(--card); border: 1px solid var(--line);
+  border-radius: var(--radius); padding: 16px; margin-bottom: 12px;
+}
+label.f { display: block; font-size: 14px; color: var(--muted); margin: 0 0 6px; }
+input.in, select.in {
+  width: 100%; padding: 13px 14px; border-radius: 12px;
+  border: 1px solid var(--line); background: var(--bg); outline: none; margin-bottom: 14px;
+}
+input.in:focus, select.in:focus { border-color: var(--accent); }
+.btn {
+  display: block; width: 100%; border: 0; border-radius: 14px; padding: 15px;
+  font-weight: 600; background: var(--accent); color: #fff; cursor: pointer;
+}
+.btn:disabled { opacity: .5; }
+.btn.ghost { background: transparent; color: var(--accent); border: 1px solid var(--line); }
+.err { color: var(--err); font-size: 14px; min-height: 20px; margin: -4px 0 10px; }
+
+/* Главный экран */
+.top { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+.top .who { min-width: 0; }
+.top .proj { font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.top .name { font-size: 20px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.icon-btn {
+  flex: none; width: 42px; height: 42px; border-radius: 12px; border: 1px solid var(--line);
+  background: var(--card); display: grid; place-items: center; cursor: pointer;
+}
+.today { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.today .cell { border-radius: 12px; padding: 10px 12px; background: var(--bg); }
+.today .k { font-size: 13px; color: var(--muted); }
+.today .v { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.today .cell.in .v { color: var(--in); }
+.today .cell.out .v { color: var(--out); }
+.pointline { font-size: 14px; color: var(--muted); margin-top: 10px; }
+.geo { font-size: 13px; color: var(--muted); margin: -6px 0 2px; }
+.big {
+  display: flex; align-items: center; gap: 14px; width: 100%; text-align: left;
+  border-radius: var(--radius); padding: 18px; margin-bottom: 12px; cursor: pointer;
+  border: 2px solid transparent; font-weight: 700; font-size: 19px;
+}
+.big small { display: block; font-weight: 400; font-size: 14px; opacity: .8; }
+.big.in { background: var(--in-soft); color: var(--in); }
+.big.out { background: var(--out-soft); color: var(--out); }
+.big.next.in { border-color: var(--in); }
+.big.next.out { border-color: var(--out); }
+.big .ico { width: 46px; height: 46px; border-radius: 50%; display: grid; place-items: center; flex: none; color: #fff; }
+.big.in .ico { background: var(--in); }
+.big.out .ico { background: var(--out); }
+.queue {
+  background: var(--warn-soft); color: var(--warn); border-radius: 12px;
+  padding: 10px 14px; font-size: 14px; margin-bottom: 12px; display: none;
+}
+.hist h3 { font-size: 14px; color: var(--muted); font-weight: 600; margin: 4px 0 8px; }
+.hist .row { display: flex; gap: 10px; padding: 8px 0; border-top: 1px solid var(--line); font-size: 14px; }
+.hist .row:first-of-type { border-top: 0; }
+.hist .t { font-variant-numeric: tabular-nums; font-weight: 600; width: 92px; flex: none; }
+.hist .p { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
+.hist .s { flex: none; }
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; }
+.dot.in { background: var(--in); } .dot.out { background: var(--out); }
+.empty { color: var(--muted); font-size: 14px; }
+
+/* Камера */
+#camera, #review { background: #000; color: #fff; }
+.cam { position: fixed; inset: 0; display: flex; flex-direction: column; }
+.cam .view { position: relative; flex: 1; overflow: hidden; }
+.cam video, .cam img.shot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.cam img.shot { object-fit: contain; }
+.cam video.mirror { transform: scaleX(-1); }
+.cam .head {
+  position: absolute; top: 0; left: 0; right: 0; padding: calc(12px + env(safe-area-inset-top)) 16px 12px;
+  display: flex; justify-content: space-between; align-items: center;
+  background: linear-gradient(rgba(0,0,0,.55), transparent); z-index: 2;
+}
+.cam .tag { font-weight: 700; padding: 6px 12px; border-radius: 999px; font-size: 14px; }
+.cam .tag.in { background: var(--in); } .cam .tag.out { background: var(--out); }
+.cam .x { background: rgba(255,255,255,.18); border: 0; color: #fff; width: 40px; height: 40px; border-radius: 50%; cursor: pointer; }
+.stamp {
+  position: absolute; left: 0; right: 0; bottom: 0; padding: 10px 14px;
+  background: rgba(0,0,0,.55); font-size: 13px; line-height: 1.35; z-index: 2; pointer-events: none;
+}
+.stamp b { font-size: 16px; font-variant-numeric: tabular-nums; }
+.cam .bar {
+  flex: none; display: flex; align-items: center; justify-content: space-around;
+  padding: 18px 16px calc(18px + env(safe-area-inset-bottom)); background: #000; gap: 12px;
+}
+.shutter {
+  width: 76px; height: 76px; border-radius: 50%; border: 5px solid #fff;
+  background: rgba(255,255,255,.25); cursor: pointer;
+}
+.shutter:active { background: #fff; }
+.side { width: 56px; height: 56px; border-radius: 50%; border: 0; background: rgba(255,255,255,.16); color: #fff; cursor: pointer; display: grid; place-items: center; }
+.side.hidden { visibility: hidden; }
+.cam .msg { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; padding: 24px; color: #ddd; }
+.bar .btn { flex: 1; }
+.bar .btn.ghost { color: #fff; border-color: #444; }
+
+/* Готово */
+.done { text-align: center; padding-top: 12vh; }
+.done .ok {
+  width: 96px; height: 96px; border-radius: 50%; margin: 0 auto 18px;
+  display: grid; place-items: center; color: #fff;
+}
+.done .ok.in { background: var(--in); } .done .ok.out { background: var(--out); }
+.done .time { font-size: 40px; font-weight: 800; font-variant-numeric: tabular-nums; margin: 4px 0; }
+.notes { background: var(--warn-soft); color: var(--warn); border-radius: 12px; padding: 10px 14px; font-size: 14px; text-align: left; margin: 16px 0; }
+</style>
+</head>
+<body>
+
+<!-- Первый вход -->
+<section class="screen" id="setup">
+  <div class="wrap">
+    <h1>Check-in</h1>
+    <p class="sub">Отметка прихода и ухода с фото. Заполняется один раз.</p>
+    <div class="card">
+      <label class="f" for="s-name">Фамилия и имя</label>
+      <input class="in" id="s-name" autocomplete="name" placeholder="Иванов Иван">
+      <label class="f" for="s-code">Код проекта</label>
+      <input class="in" id="s-code" inputmode="numeric" autocomplete="off" placeholder="Скажет руководитель">
+      <div class="err" id="s-err"></div>
+      <button class="btn" id="s-go">Продолжить</button>
+    </div>
+  </div>
+</section>
+
+<!-- Главный -->
+<section class="screen" id="main">
+  <div class="wrap">
+    <div class="top">
+      <div class="who">
+        <div class="proj" id="m-proj"></div>
+        <div class="name" id="m-name"></div>
+      </div>
+      <button class="icon-btn" id="m-edit" aria-label="Сменить сотрудника">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg>
+      </button>
+    </div>
+
+    <div class="card">
+      <div class="today">
+        <div class="cell in"><div class="k">Приход</div><div class="v" id="m-in">—</div></div>
+        <div class="cell out"><div class="k">Уход</div><div class="v" id="m-out">—</div></div>
+      </div>
+      <div class="pointline" id="m-today-point"></div>
+    </div>
+
+    <div class="card">
+      <label class="f" for="m-point">Где вы сейчас</label>
+      <select class="in" id="m-point"></select>
+      <input class="in" id="m-point-free" placeholder="Название точки" style="display:none">
+      <div class="geo" id="m-geo"></div>
+    </div>
+
+    <div class="queue" id="m-queue"></div>
+
+    <button class="big in" id="b-in">
+      <span class="ico"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M10 17l5-5-5-5"/><path d="M15 12H3"/><path d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4"/></svg></span>
+      <span>Пришёл на работу<small>Check-in · фото на рабочем месте</small></span>
+    </button>
+    <button class="big out" id="b-out">
+      <span class="ico"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg></span>
+      <span>Ухожу с работы<small>Check-out · фото в конце дня</small></span>
+    </button>
+
+    <div class="card hist">
+      <h3>Последние отметки</h3>
+      <div id="m-hist"></div>
+    </div>
+  </div>
+</section>
+
+<!-- Камера -->
+<section class="screen" id="camera">
+  <div class="cam">
+    <div class="view">
+      <video id="c-video" playsinline muted autoplay></video>
+      <div class="msg" id="c-msg"></div>
+      <div class="head">
+        <span class="tag" id="c-tag"></span>
+        <button class="x" id="c-close" aria-label="Отмена">✕</button>
+      </div>
+      <div class="stamp" id="c-stamp"></div>
+    </div>
+    <div class="bar">
+      <button class="side hidden" aria-hidden="true"></button>
+      <button class="shutter" id="c-shot" aria-label="Сделать фото"></button>
+      <button class="side" id="c-flip" aria-label="Сменить камеру">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7h-3l-2-3H9L7 7H4a1 1 0 00-1 1v10a1 1 0 001 1h16a1 1 0 001-1V8a1 1 0 00-1-1z"/><path d="M9 13a3 3 0 015-2.2M15 13a3 3 0 01-5 2.2"/><path d="M14 9v2h-2M10 17v-2h2"/></svg>
+      </button>
+    </div>
+  </div>
+  <input type="file" id="c-file" accept="image/*" capture="user" style="display:none">
+</section>
+
+<!-- Проверка снимка -->
+<section class="screen" id="review">
+  <div class="cam">
+    <div class="view"><img class="shot" id="r-img" alt="Снимок"></div>
+    <div class="bar">
+      <button class="btn ghost" id="r-again">Переснять</button>
+      <button class="btn" id="r-send">Отправить</button>
+    </div>
+  </div>
+</section>
+
+<!-- Готово -->
+<section class="screen" id="done">
+  <div class="wrap done">
+    <div class="ok" id="d-ok"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div>
+    <div id="d-title" style="font-size:18px;font-weight:600"></div>
+    <div class="time" id="d-time"></div>
+    <div class="sub" id="d-sub"></div>
+    <div class="notes" id="d-notes" style="display:none"></div>
+    <button class="btn" id="d-back">Готово</button>
+  </div>
+</section>
+
+<script>
+// Адрес веб-приложения Google Apps Script (заканчивается на /exec). См. README.md.
+var API_URL = "https://script.google.com/macros/s/AKfycbxwJ5r-PKke8IUU0L99qwkppslSJUbs8Xdcz7isqFSzDTSvG-hqZu4X08_DQq9gcTXHcA/exec";
+
+var STORE_KEY = "checkin.v1";
+var MAX_SIDE = 1600;       // длинная сторона фото, px
+var JPEG_QUALITY = 0.82;
+var GEO_WAIT_MS = 8000;    // сколько ждать геолокацию после нажатия на затвор
+
+var S = load();
+var $ = function (id) { return document.getElementById(id); };
+
+function load() {
+  try { return JSON.parse(localStorage.getItem(STORE_KEY)) || {}; } catch (e) { return {}; }
+}
+function save() {
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(S)); } catch (e) {}
+}
+function show(id) {
+  var list = document.querySelectorAll(".screen");
+  for (var i = 0; i < list.length; i++) list[i].classList.toggle("on", list[i].id === id);
+  window.scrollTo(0, 0);
+}
+function pad(n) { return (n < 10 ? "0" : "") + n; }
+function hhmm(d) { return pad(d.getHours()) + ":" + pad(d.getMinutes()); }
+function dayKey(d) { return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()); }
+function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 10); }
+function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+
+// Время, сверенное с сервером: телефонные часы + поправка с последней сверки.
+function now() { return new Date(Date.now() + (S.offset || 0)); }
+function tzLabel(d) {
+  var m = -d.getTimezoneOffset();
+  return "UTC" + (m >= 0 ? "+" : "−") + Math.floor(Math.abs(m) / 60) + (m % 60 ? ":" + pad(Math.abs(m % 60)) : "");
+}
+
+// ---------- Сервер ----------
+
+function api(params) {
+  var q = Object.keys(params).map(function (k) { return k + "=" + encodeURIComponent(params[k]); }).join("&");
+  var t0 = Date.now();
+  return fetch(API_URL + "?" + q, { cache: "no-store" }).then(function (r) { return r.json(); }).then(function (res) {
+    var t1 = Date.now();
+    // Сверяем часы, только если ответ пришёл быстро — иначе поправка неточная.
+    if (res.serverTime && t1 - t0 < 5000) {
+      S.offset = res.serverTime - Math.round((t0 + t1) / 2);
+      S.syncedAt = t1;
+      save();
+    }
+    return res;
+  });
+}
+
+function refreshConfig() {
+  if (!S.code) return Promise.resolve();
+  return api({ action: "config", code: S.code }).then(function (res) {
+    if (!res.ok && res.error === "code") {
+      S.code = "";
+      save();
+      openSetup("Код проекта сменился — спросите новый у руководителя.");
+      return;
+    }
+    if (res.ok) {
+      S.project = res.project;
+      S.points = res.points || [];
+      S.freePoint = res.freePoint;
+      save();
+      renderMain();
+    }
+  }).catch(function () {});
+}
+
+// ---------- Очередь отправки (IndexedDB) ----------
+
+var dbp = null;
+function db() {
+  if (!dbp) {
+    dbp = new Promise(function (resolve, reject) {
+      var req = indexedDB.open("checkin", 1);
+      req.onupgradeneeded = function () { req.result.createObjectStore("queue", { keyPath: "id" }); };
+      req.onsuccess = function () { resolve(req.result); };
+      req.onerror = function () { reject(req.error); };
+    });
+  }
+  return dbp;
+}
+function qOp(mode, fn) {
+  return db().then(function (d) {
+    return new Promise(function (resolve, reject) {
+      var tx = d.transaction("queue", mode);
+      var r = fn(tx.objectStore("queue"));
+      tx.oncomplete = function () { resolve(r && r.result); };
+      tx.onerror = function () { reject(tx.error); };
+    });
+  });
+}
+var qPut = function (item) { return qOp("readwrite", function (s) { return s.put(item); }); };
+var qDel = function (id) { return qOp("readwrite", function (s) { return s["delete"](id); }); };
+var qAll = function () { return qOp("readonly", function (s) { return s.getAll(); }); };
+
+function sendItem(item) {
+  return fetch(API_URL, {
+    method: "POST",
+    // text/plain — чтобы браузер не слал предварительный OPTIONS, Apps Script его не понимает.
+    headers: { "Content-Type": "text/plain;charset=utf-8" },
+    body: JSON.stringify(item)
+  }).then(function (r) { return r.json(); }).then(function (res) {
+    if (!res.ok) throw new Error(res.error || "server");
+    return qDel(item.id).catch(function () {}).then(function () {
+      markHist(item.id, "sent");
+      return res;
+    });
+  });
+}
+
+var flushing = false;
+function flush() {
+  if (flushing || !API_URL) return Promise.resolve();
+  flushing = true;
+  return qAll().then(function (items) {
+    items.sort(function (a, b) { return a.takenAt - b.takenAt; });
+    var chain = Promise.resolve();
+    items.forEach(function (it) {
+      chain = chain.then(function () { return sendItem(it); }).catch(function (e) {
+        if (String(e.message) === "code") { S.code = ""; save(); }
+      });
+    });
+    return chain;
+  }).catch(function () {}).then(function () {
+    flushing = false;
+    renderQueue();
+  });
+}
+
+function renderQueue() {
+  qAll().then(function (items) {
+    var el = $("m-queue");
+    if (items && items.length) {
+      el.style.display = "block";
+      el.textContent = (items.length === 1 ? "1 фото ждёт" : items.length + " фото ждут") +
+        " отправки — уйдёт само, как только появится интернет.";
+    } else {
+      el.style.display = "none";
+    }
+  }).catch(function () {});
+}
+
+// ---------- История на телефоне ----------
+
+function addHist(item) {
+  S.hist = S.hist || [];
+  S.hist.unshift({ id: item.id, type: item.type, point: item.point, t: item.takenAt, status: "queued" });
+  S.hist = S.hist.slice(0, 20);
+  save();
+}
+function markHist(id, status) {
+  (S.hist || []).forEach(function (h) { if (h.id === id) h.status = status; });
+  save();
+  renderMain();
+}
+
+// ---------- Геолокация ----------
+
+var geo = { pos: null, err: "", pending: null };
+function locate() {
+  if (geo.pending) return geo.pending;
+  if (!navigator.geolocation) {
+    geo.err = "не поддерживается";
+    return Promise.resolve(null);
+  }
+  geo.pending = new Promise(function (resolve) {
+    navigator.geolocation.getCurrentPosition(function (p) {
+      geo.pos = { lat: p.coords.latitude, lng: p.coords.longitude, acc: p.coords.accuracy, at: Date.now() };
+      geo.err = "";
+      geo.pending = null;
+      resolve(geo.pos);
+      onGeo();
+    }, function (e) {
+      geo.err = e.code === 1 ? "доступ запрещён" : e.code === 3 ? "не успела определиться" : "недоступна";
+      geo.pending = null;
+      resolve(null);
+      onGeo();
+    }, { enableHighAccuracy: true, timeout: 20000, maximumAge: 30000 });
+  });
+  return geo.pending;
+}
+function freshPos() {
+  return geo.pos && Date.now() - geo.pos.at < 120000 ? geo.pos : null;
+}
+
+function distM(a, b) {
+  var R = 6371000, r = Math.PI / 180;
+  var dLat = (b.lat - a.lat) * r, dLng = (b.lng - a.lng) * r;
+  var h = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(a.lat * r) * Math.cos(b.lat * r) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+function fmtDist(m) { return m < 1000 ? Math.round(m) + " м" : (m / 1000).toFixed(1).replace(".", ",") + " км"; }
+
+var userPicked = false;
+function onGeo() {
+  var pos = freshPos();
+  var el = $("m-geo");
+  if (!pos) {
+    el.textContent = geo.err ? "Геолокация: " + geo.err + ". Отметка пройдёт, но руководитель это увидит." : "";
+    return;
+  }
+  var pts = (S.points || []).filter(function (p) { return p.lat !== null && p.lng !== null; });
+  if (!pts.length) { el.textContent = "Местоположение определено, ±" + Math.round(pos.acc) + " м"; return; }
+  var best = null, bestD = Infinity;
+  pts.forEach(function (p) { var d = distM(pos, p); if (d < bestD) { bestD = d; best = p; } });
+  // Сами выбираем ближайшую точку, пока сотрудник не выбрал руками.
+  if (!userPicked && bestD <= (best.radius || 300)) {
+    $("m-point").value = best.name;
+    pointChanged();
+  }
+  var cur = pointByName($("m-point").value);
+  if (cur && cur.lat !== null) {
+    var d = distM(pos, cur);
+    el.textContent = "До точки " + fmtDist(d) + (d > (cur.radius || 300) ? " — вы далеко от неё" : " ✓");
+  } else {
+    el.textContent = "Местоположение определено, ±" + Math.round(pos.acc) + " м";
+  }
+}
+
+// ---------- Экраны ----------
+
+function openSetup(msg) {
+  $("s-name").value = S.name || "";
+  $("s-code").value = S.code || "";
+  $("s-err").textContent = msg || "";
+  show("setup");
+}
+
+$("s-go").onclick = function () {
+  var name = $("s-name").value.replace(/\s+/g, " ").trim();
+  var code = $("s-code").value.trim();
+  if (name.split(" ").length < 2) { $("s-err").textContent = "Напишите фамилию и имя."; return; }
+  if (!code) { $("s-err").textContent = "Введите код проекта."; return; }
+  if (!API_URL) { $("s-err").textContent = "Приложение ещё не подключено к серверу (API_URL пуст)."; return; }
+  var btn = this;
+  btn.disabled = true;
+  $("s-err").textContent = "";
+  api({ action: "config", code: code }).then(function (res) {
+    btn.disabled = false;
+    if (!res.ok) { $("s-err").textContent = "Неверный код проекта."; return; }
+    S.name = name; S.code = code;
+    S.project = res.project; S.points = res.points || []; S.freePoint = res.freePoint;
+    save();
+    openMain();
+    flush();
+  }).catch(function () {
+    btn.disabled = false;
+    $("s-err").textContent = "Нет связи с сервером. Проверьте интернет и попробуйте ещё раз.";
+  });
+};
+
+function pointByName(n) {
+  var list = S.points || [];
+  for (var i = 0; i < list.length; i++) if (list[i].name === n) return list[i];
+  return null;
+}
+
+var FREE = "__free__";
+function renderPoints() {
+  var sel = $("m-point");
+  var list = S.points || [];
+  var html = list.length ? "" : '<option value="">— список точек пуст —</option>';
+  list.forEach(function (p) {
+    html += '<option value="' + esc(p.name) + '">' + esc(p.name) + (p.address ? " · " + esc(p.address) : "") + "</option>";
+  });
+  if (S.freePoint !== false) html += '<option value="' + FREE + '">Другая точка…</option>';
+  sel.innerHTML = html;
+  var last = S.lastPoint || "";
+  if (pointByName(last)) sel.value = last;
+  else if (last && S.freePoint !== false) { sel.value = FREE; $("m-point-free").value = last; }
+  pointChanged();
+}
+function pointChanged() {
+  var free = $("m-point").value === FREE;
+  $("m-point-free").style.display = free ? "block" : "none";
+}
+function currentPoint() {
+  var v = $("m-point").value;
+  return v === FREE ? $("m-point-free").value.replace(/\s+/g, " ").trim() : v;
+}
+$("m-point").onchange = function () { userPicked = true; pointChanged(); onGeo(); };
+
+function todayMarks() {
+  var key = dayKey(now());
+  return (S.hist || []).filter(function (h) { return dayKey(new Date(h.t)) === key; });
+}
+
+function renderMain() {
+  $("m-proj").textContent = S.project || "Check-in";
+  $("m-name").textContent = S.name || "";
+  var marks = todayMarks();
+  var firstIn = null, lastOut = null;
+  marks.forEach(function (h) {
+    if (h.type === "in" && (!firstIn || h.t < firstIn.t)) firstIn = h;
+    if (h.type === "out" && (!lastOut || h.t > lastOut.t)) lastOut = h;
+  });
+  $("m-in").textContent = firstIn ? hhmm(new Date(firstIn.t)) : "—";
+  $("m-out").textContent = lastOut ? hhmm(new Date(lastOut.t)) : "—";
+  $("m-today-point").textContent = firstIn ? "Сегодня: " + firstIn.point : "Сегодня отметок ещё не было";
+  var nextOut = firstIn && !lastOut;
+  $("b-in").classList.toggle("next", !nextOut && !lastOut);
+  $("b-out").classList.toggle("next", !!nextOut);
+
+  var hist = S.hist || [];
+  var html = "";
+  hist.slice(0, 8).forEach(function (h) {
+    var d = new Date(h.t);
+    var dateTxt = dayKey(d) === dayKey(now()) ? "" : pad(d.getDate()) + "." + pad(d.getMonth() + 1) + " ";
+    html += '<div class="row"><span class="t"><span class="dot ' + h.type + '"></span>' + dateTxt + hhmm(d) +
+      '</span><span class="p">' + (h.type === "in" ? "Приход" : "Уход") + " · " + esc(h.point) +
+      '</span><span class="s">' + (h.status === "sent" ? "✓" : "⏳") + "</span></div>";
+  });
+  $("m-hist").innerHTML = html || '<div class="empty">Пока пусто</div>';
+}
+
+function openMain() {
+  renderPoints();
+  renderMain();
+  renderQueue();
+  show("main");
+  locate().then(onGeo);
+}
+
+$("m-edit").onclick = function () { openSetup(""); };
+
+// ---------- Съёмка ----------
+
+var cam = { type: "in", stream: null, facing: "user", timer: 0, point: "" };
+
+function startShot(type) {
+  var point = currentPoint();
+  if (!point) {
+    alert("Выберите или впишите точку, где вы находитесь.");
+    return;
+  }
+  S.lastPoint = point;
+  save();
+  cam.type = type;
+  cam.point = point;
+  $("c-tag").textContent = type === "in" ? "CHECK-IN · приход" : "CHECK-OUT · уход";
+  $("c-tag").className = "tag " + type;
+  show("camera");
+  locate();
+  // Сверяем часы ещё раз прямо перед снимком, если есть сеть.
+  if (API_URL) api({ action: "time" }).catch(function () {});
+  startCamera();
+  cam.timer = setInterval(drawLiveStamp, 500);
+  drawLiveStamp();
+}
+$("b-in").onclick = function () { startShot("in"); };
+$("b-out").onclick = function () { startShot("out"); };
+
+function startCamera() {
+  stopCamera();
+  var v = $("c-video");
+  $("c-msg").textContent = "Включаем камеру…";
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    useFileFallback("Камера в этом браузере недоступна.");
+    return;
+  }
+  navigator.mediaDevices.getUserMedia({
+    video: { facingMode: cam.facing, width: { ideal: 1920 }, height: { ideal: 1080 } },
+    audio: false
+  }).then(function (stream) {
+    cam.stream = stream;
+    v.srcObject = stream;
+    v.classList.toggle("mirror", cam.facing === "user");
+    return v.play();
+  }).then(function () {
+    $("c-msg").textContent = "";
+  }).catch(function (e) {
+    useFileFallback(e && e.name === "NotAllowedError"
+      ? "Нет доступа к камере. Разрешите его в настройках браузера — или снимите системной камерой."
+      : "Не удалось включить камеру.");
+  });
+}
+function stopCamera() {
+  if (cam.stream) cam.stream.getTracks().forEach(function (t) { t.stop(); });
+  cam.stream = null;
+}
+function closeCamera() {
+  clearInterval(cam.timer);
+  stopCamera();
+}
+
+function useFileFallback(text) {
+  $("c-msg").innerHTML = esc(text) + '<br><br><button class="btn" id="c-sys" style="max-width:260px;margin:0 auto">Открыть камеру телефона</button>';
+  $("c-sys").onclick = function () { $("c-file").click(); };
+}
+
+$("c-close").onclick = function () { closeCamera(); openMain(); };
+$("c-flip").onclick = function () {
+  cam.facing = cam.facing === "user" ? "environment" : "user";
+  startCamera();
+};
+
+function stampLines(when, pos) {
+  var date = pad(when.getDate()) + "." + pad(when.getMonth() + 1) + "." + when.getFullYear();
+  var time = pad(when.getHours()) + ":" + pad(when.getMinutes()) + ":" + pad(when.getSeconds());
+  return [
+    (cam.type === "in" ? "CHECK-IN" : "CHECK-OUT") + "  " + date + "  " + time + "  " + tzLabel(when),
+    S.name + " · " + cam.point,
+    pos ? pos.lat.toFixed(5) + ", " + pos.lng.toFixed(5) + "  ±" + Math.round(pos.acc) + " м"
+        : "геолокация: " + (geo.err || "определяется…")
+  ];
+}
+function drawLiveStamp() {
+  var l = stampLines(now(), freshPos());
+  $("c-stamp").innerHTML = "<b>" + esc(l[0]) + "</b><br>" + esc(l[1]) + "<br>" + esc(l[2]);
+}
+
+$("c-shot").onclick = function () {
+  var v = $("c-video");
+  if (!cam.stream || !v.videoWidth) return;
+  var when = now();
+  // Кадр берём сразу, а геолокацию даём догнать — штамп ставим со временем нажатия.
+  var frame = grabFrame(v, v.videoWidth, v.videoHeight);
+  finishShot(frame, when, "camera");
+};
+
+$("c-file").onchange = function () {
+  var f = this.files && this.files[0];
+  this.value = "";
+  if (!f) return;
+  var when = now();
+  var img = new Image();
+  img.onload = function () {
+    URL.revokeObjectURL(img.src);
+    finishShot(grabFrame(img, img.naturalWidth, img.naturalHeight), when, "file");
+  };
+  img.src = URL.createObjectURL(f);
+};
+
+function grabFrame(src, w, h) {
+  var k = Math.min(1, MAX_SIDE / Math.max(w, h));
+  var c = document.createElement("canvas");
+  c.width = Math.round(w * k);
+  c.height = Math.round(h * k);
+  c.getContext("2d").drawImage(src, 0, 0, c.width, c.height);
+  return c;
+}
+
+var pending = null;
+function finishShot(canvas, when, source) {
+  closeCamera();
+  $("r-img").removeAttribute("src");
+  $("r-send").disabled = true;
+  $("r-send").textContent = "Определяем место…";
+  show("review");
+  var pos = freshPos();
+  var wait = pos ? Promise.resolve(pos) : Promise.race([locate(), sleep(GEO_WAIT_MS)]).then(freshPos);
+  wait.then(function (p) {
+    drawStamp(canvas, stampLines(when, p));
+    var dataUrl = canvas.toDataURL("image/jpeg", JPEG_QUALITY);
+    $("r-img").src = dataUrl;
+    pending = {
+      id: uid(),
+      code: S.code,
+      type: cam.type,
+      name: S.name,
+      point: cam.point,
+      takenAt: when.getTime(),
+      deviceTime: when.getTime() - (S.offset || 0),
+      clockSkew: S.offset || 0,
+      synced: !!S.syncedAt && Date.now() - S.syncedAt < 6 * 3600000,
+      lat: p ? p.lat : null,
+      lng: p ? p.lng : null,
+      acc: p ? p.acc : null,
+      geoError: p ? "" : geo.err || "не определилась",
+      source: source,
+      photo: dataUrl.split(",")[1]
+    };
+    $("r-send").disabled = false;
+    $("r-send").textContent = "Отправить";
+  });
+}
+
+function drawStamp(c, lines) {
+  var g = c.getContext("2d");
+  var fs = Math.max(14, Math.round(c.width / 30));
+  var pad = Math.round(fs * 0.7);
+  var lh = Math.round(fs * 1.3);
+  var h = pad * 2 + lh * lines.length;
+  g.fillStyle = "rgba(0,0,0,0.6)";
+  g.fillRect(0, c.height - h, c.width, h);
+  g.fillStyle = "#fff";
+  g.textBaseline = "top";
+  lines.forEach(function (t, i) {
+    g.font = (i === 0 ? "bold " + Math.round(fs * 1.1) : fs) + "px -apple-system, Roboto, 'Segoe UI', Arial, sans-serif";
+    // Длинное имя точки ужимаем по ширине, чтобы не уехало за край.
+    var max = c.width - pad * 2;
+    var s = t;
+    while (g.measureText(s).width > max && s.length > 4) s = s.slice(0, -2);
+    if (s !== t) s = s.slice(0, -1) + "…";
+    g.fillText(s, pad, c.height - h + pad + i * lh);
+  });
+}
+
+$("r-again").onclick = function () {
+  pending = null;
+  startShot(cam.type);
+};
+
+$("r-send").onclick = function () {
+  if (!pending) return;
+  var item = pending;
+  pending = null;
+  var btn = this;
+  btn.disabled = true;
+  btn.textContent = "Отправляем…";
+  // Сначала в очередь на телефоне — даже если сеть пропадёт посреди отправки, фото не потеряется.
+  // Если хранилище недоступно (приватный режим), отправляем напрямую — но без страховки.
+  var stored = true;
+  qPut(item).catch(function () { stored = false; }).then(function () {
+    addHist(item);
+    return sendItem(item).then(function (res) { return { sent: true, res: res }; },
+      function (e) { return { sent: false, err: e }; });
+  }).then(function (r) {
+    if (!r.sent && !stored) {
+      (S.hist || []).shift();
+      save();
+      btn.disabled = false;
+      btn.textContent = "Отправить ещё раз";
+      pending = item;
+      alert("Нет связи с сервером, а сохранить фото на телефоне не получилось. Проверьте интернет и нажмите «Отправить ещё раз».");
+      return;
+    }
+    showDone(item, r);
+  });
+};
+
+function showDone(item, r) {
+  var t = new Date(item.takenAt);
+  $("d-ok").className = "ok " + item.type;
+  $("d-title").textContent = item.type === "in" ? "Приход отмечен" : "Уход отмечен";
+  $("d-time").textContent = hhmm(t);
+  $("d-sub").textContent = item.point;
+  var notes = [];
+  if (!r.sent) {
+    if (r.err && r.err.message === "code") {
+      notes.push("Сервер не принял код проекта. Фото сохранено — нажмите на значок человечка и введите новый код.");
+    } else {
+      notes.push("Интернета нет — фото сохранено на телефоне и уйдёт само, как только появится связь. Время снимка уже записано.");
+    }
+  } else if (r.res.notes && r.res.notes.length) {
+    notes.push("Руководитель увидит замечание: " + r.res.notes.join("; ") + ".");
+  }
+  $("d-notes").style.display = notes.length ? "block" : "none";
+  $("d-notes").textContent = notes.join(" ");
+  renderMain();
+  show("done");
+}
+$("d-back").onclick = function () { openMain(); };
+
+// ---------- Старт ----------
+
+window.addEventListener("online", flush);
+setInterval(function () { if (navigator.onLine) flush(); }, 60000);
+document.addEventListener("visibilitychange", function () {
+  if (document.visibilityState === "visible") { flush(); refreshConfig(); }
+  else if ($("camera").classList.contains("on")) { closeCamera(); openMain(); }
+});
+
+if ("serviceWorker" in navigator && location.protocol === "https:") {
+  navigator.serviceWorker.register("sw.js").catch(function () {});
+}
+
+if (S.name && S.code) {
+  openMain();
+  refreshConfig();
+  flush();
+} else {
+  openSetup("");
+}
+</script>
+</body>
+</html>
