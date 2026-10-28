@@ -155,6 +155,19 @@ input.in:focus, select.in:focus { border-color: var(--accent); }
 .side { width: 56px; height: 56px; border-radius: 50%; border: 0; background: rgba(255,255,255,.16); color: #fff; cursor: pointer; display: grid; place-items: center; }
 .side.hidden { visibility: hidden; }
 .cam .msg { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; padding: 24px; color: #ddd; }
+.cam .hint {
+  position: absolute; top: calc(64px + env(safe-area-inset-top)); left: 16px; right: 16px; z-index: 2;
+  background: rgba(0,0,0,.55); border-radius: 12px; padding: 8px 12px; font-size: 14px; text-align: center;
+}
+.cam .hint b { display: block; font-size: 16px; }
+.pair {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 8px; align-content: center;
+  padding: calc(12px + env(safe-area-inset-top)) 8px 8px;
+}
+.pair figure { margin: 0; cursor: pointer; }
+.pair img { display: block; width: 100%; aspect-ratio: 3 / 4; object-fit: contain; background: #111; border-radius: 10px; }
+.pair figcaption { text-align: center; font-size: 13px; color: #bbb; padding: 6px 0 0; }
+.pair figcaption b { color: #fff; }
 .bar .btn { flex: 1; }
 .bar .btn.ghost { color: #fff; border-color: #444; }
 
@@ -219,11 +232,11 @@ input.in:focus, select.in:focus { border-color: var(--accent); }
 
     <button class="big in" id="b-in">
       <span class="ico"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M10 17l5-5-5-5"/><path d="M15 12H3"/><path d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4"/></svg></span>
-      <span>Пришёл на работу<small>Check-in · фото на рабочем месте</small></span>
+      <span>Пришёл на работу<small>Check-in · селфи и фото стенда</small></span>
     </button>
     <button class="big out" id="b-out">
       <span class="ico"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg></span>
-      <span>Ухожу с работы<small>Check-out · фото в конце дня</small></span>
+      <span>Ухожу с работы<small>Check-out · селфи и фото стенда</small></span>
     </button>
 
     <div class="card hist">
@@ -243,6 +256,7 @@ input.in:focus, select.in:focus { border-color: var(--accent); }
         <span class="tag" id="c-tag"></span>
         <button class="x" id="c-close" aria-label="Отмена">✕</button>
       </div>
+      <div class="hint" id="c-hint"></div>
       <div class="stamp" id="c-stamp"></div>
     </div>
     <div class="bar">
@@ -259,9 +273,12 @@ input.in:focus, select.in:focus { border-color: var(--accent); }
 <!-- Проверка снимка -->
 <section class="screen" id="review">
   <div class="cam">
-    <div class="view"><img class="shot" id="r-img" alt="Снимок"></div>
+    <div class="view pair">
+      <figure id="r-f0"><img id="r-img" alt="Селфи"><figcaption><b>Селфи</b> · переснять</figcaption></figure>
+      <figure id="r-f1"><img id="r-img2" alt="Стенд"><figcaption><b>Стенд</b> · переснять</figcaption></figure>
+    </div>
     <div class="bar">
-      <button class="btn ghost" id="r-again">Переснять</button>
+      <button class="btn ghost" id="r-again">Переснять всё</button>
       <button class="btn" id="r-send">Отправить</button>
     </div>
   </div>
@@ -419,8 +436,8 @@ function renderQueue() {
     var el = $("m-queue");
     if (items && items.length) {
       el.style.display = "block";
-      el.textContent = (items.length === 1 ? "1 фото ждёт" : items.length + " фото ждут") +
-        " отправки — уйдёт само, как только появится интернет.";
+      el.textContent = "Ждут отправки: " + items.length +
+        " — уйдут сами, как только появится интернет.";
     } else {
       el.style.display = "none";
     }
@@ -613,7 +630,12 @@ $("m-edit").onclick = function () { openSetup(""); };
 
 // ---------- Съёмка ----------
 
-var cam = { type: "in", stream: null, facing: "user", timer: 0, point: "" };
+// Отметка — два кадра: 0 — селфи с промо-зоны (фронтальная), 1 — стенд со смартфонами (основная).
+var STEPS = [
+  { facing: "user", title: "Шаг 1 из 2 · Селфи", text: "На фоне промо-зоны, в рабочей форме" },
+  { facing: "environment", title: "Шаг 2 из 2 · Стенд", text: "Сфотографируйте стенд со смартфонами целиком" }
+];
+var cam = { type: "in", stream: null, facing: "user", timer: 0, point: "", step: 0, only: false, shots: [] };
 
 function startShot(type) {
   var point = currentPoint();
@@ -625,13 +647,25 @@ function startShot(type) {
   save();
   cam.type = type;
   cam.point = point;
+  cam.shots = [];
   $("c-tag").textContent = type === "in" ? "CHECK-IN · приход" : "CHECK-OUT · уход";
   $("c-tag").className = "tag " + type;
-  show("camera");
   locate();
   // Сверяем часы ещё раз прямо перед снимком, если есть сеть.
   if (API_URL) api({ action: "time" }).catch(function () {});
+  openStep(0, false);
+}
+
+// only — переснимаем один кадр с экрана проверки, после него сразу назад к проверке.
+function openStep(step, only) {
+  cam.step = step;
+  cam.only = only;
+  cam.facing = STEPS[step].facing;
+  $("c-hint").innerHTML = "<b>" + esc(STEPS[step].title) + "</b>" + esc(STEPS[step].text);
+  $("c-file").setAttribute("capture", cam.facing);
+  show("camera");
   startCamera();
+  clearInterval(cam.timer);
   cam.timer = setInterval(drawLiveStamp, 500);
   drawLiveStamp();
 }
@@ -676,24 +710,30 @@ function useFileFallback(text) {
   $("c-sys").onclick = function () { $("c-file").click(); };
 }
 
-$("c-close").onclick = function () { closeCamera(); openMain(); };
+$("c-close").onclick = function () {
+  // Отказались переснимать один кадр — возвращаемся к проверке с прежними снимками.
+  if (cam.only && cam.shots[0] && cam.shots[1]) { finishShot(); return; }
+  closeCamera();
+  openMain();
+};
 $("c-flip").onclick = function () {
   cam.facing = cam.facing === "user" ? "environment" : "user";
   startCamera();
 };
 
-function stampLines(when, pos) {
+function stampLines(when, pos, step) {
   var date = pad(when.getDate()) + "." + pad(when.getMonth() + 1) + "." + when.getFullYear();
   var time = pad(when.getHours()) + ":" + pad(when.getMinutes()) + ":" + pad(when.getSeconds());
   return [
-    (cam.type === "in" ? "CHECK-IN" : "CHECK-OUT") + "  " + date + "  " + time + "  " + tzLabel(when),
+    (cam.type === "in" ? "CHECK-IN" : "CHECK-OUT") + (step === 1 ? " · СТЕНД" : "") +
+      "  " + date + "  " + time + "  " + tzLabel(when),
     S.name + " · " + cam.point,
     pos ? pos.lat.toFixed(5) + ", " + pos.lng.toFixed(5) + "  ±" + Math.round(pos.acc) + " м"
         : "геолокация: " + (geo.err || "определяется…")
   ];
 }
 function drawLiveStamp() {
-  var l = stampLines(now(), freshPos());
+  var l = stampLines(now(), freshPos(), cam.step);
   $("c-stamp").innerHTML = "<b>" + esc(l[0]) + "</b><br>" + esc(l[1]) + "<br>" + esc(l[2]);
 }
 
@@ -703,7 +743,7 @@ $("c-shot").onclick = function () {
   var when = now();
   // Кадр берём сразу, а геолокацию даём догнать — штамп ставим со временем нажатия.
   var frame = grabFrame(v, v.videoWidth, v.videoHeight);
-  finishShot(frame, when, "camera");
+  takeShot(frame, when, "camera");
 };
 
 $("c-file").onchange = function () {
@@ -714,7 +754,7 @@ $("c-file").onchange = function () {
   var img = new Image();
   img.onload = function () {
     URL.revokeObjectURL(img.src);
-    finishShot(grabFrame(img, img.naturalWidth, img.naturalHeight), when, "file");
+    takeShot(grabFrame(img, img.naturalWidth, img.naturalHeight), when, "file");
   };
   img.src = URL.createObjectURL(f);
 };
@@ -728,19 +768,32 @@ function grabFrame(src, w, h) {
   return c;
 }
 
+function takeShot(canvas, when, source) {
+  cam.shots[cam.step] = { canvas: canvas, when: when, source: source, data: "" };
+  if (cam.step === 0 && !cam.only) openStep(1, false);
+  else finishShot();
+}
+
 var pending = null;
-function finishShot(canvas, when, source) {
+function finishShot() {
   closeCamera();
-  $("r-img").removeAttribute("src");
+  var shots = cam.shots;
+  ["r-img", "r-img2"].forEach(function (id, i) { if (!shots[i].data) $(id).removeAttribute("src"); });
   $("r-send").disabled = true;
   $("r-send").textContent = "Определяем место…";
   show("review");
   var pos = freshPos();
   var wait = pos ? Promise.resolve(pos) : Promise.race([locate(), sleep(GEO_WAIT_MS)]).then(freshPos);
   wait.then(function (p) {
-    drawStamp(canvas, stampLines(when, p));
-    var dataUrl = canvas.toDataURL("image/jpeg", JPEG_QUALITY);
-    $("r-img").src = dataUrl;
+    // Штамп ставим только на новые кадры — переснятый один не трогает второй.
+    shots.forEach(function (s, i) {
+      if (s.data) return;
+      drawStamp(s.canvas, stampLines(s.when, p, i));
+      s.data = s.canvas.toDataURL("image/jpeg", JPEG_QUALITY);
+    });
+    $("r-img").src = shots[0].data;
+    $("r-img2").src = shots[1].data;
+    var when = shots[0].when;
     pending = {
       id: uid(),
       code: S.code,
@@ -755,13 +808,19 @@ function finishShot(canvas, when, source) {
       lng: p ? p.lng : null,
       acc: p ? p.acc : null,
       geoError: p ? "" : geo.err || "не определилась",
-      source: source,
-      photo: dataUrl.split(",")[1]
+      source: shots[0].source,
+      photo: shots[0].data.split(",")[1],
+      standAt: shots[1].when.getTime(),
+      source2: shots[1].source,
+      photo2: shots[1].data.split(",")[1]
     };
     $("r-send").disabled = false;
     $("r-send").textContent = "Отправить";
   });
 }
+
+$("r-f0").onclick = function () { pending = null; openStep(0, true); };
+$("r-f1").onclick = function () { pending = null; openStep(1, true); };
 
 function drawStamp(c, lines) {
   var g = c.getContext("2d");
