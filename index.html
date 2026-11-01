@@ -278,6 +278,9 @@ input.in:focus, select.in:focus { border-color: var(--accent); }
       <figure id="r-f1"><img id="r-img2" alt="Стенд"><figcaption><b>Стенд</b> · переснять</figcaption></figure>
     </div>
     <div class="bar">
+      <div id="r-extra" class="pair"></div>
+      <button class="btn ghost" id="r-add">+ Добавить фото стенда</button>
+      <p id="r-count" style="text-align:center;font-size:14px">До 5 фото стенда на отметку</p>
       <button class="btn ghost" id="r-again">Переснять всё</button>
       <button class="btn" id="r-send">Отправить</button>
     </div>
@@ -660,8 +663,9 @@ function startShot(type) {
 function openStep(step, only) {
   cam.step = step;
   cam.only = only;
-  cam.facing = STEPS[step].facing;
-  $("c-hint").innerHTML = "<b>" + esc(STEPS[step].title) + "</b>" + esc(STEPS[step].text);
+  var guide = STEPS[step === 0 ? 0 : 1];
+  cam.facing = guide.facing;
+  $("c-hint").innerHTML = "<b>" + esc(step > 1 ? "Стенд · фото " + step : guide.title) + "</b>" + esc(guide.text);
   $("c-file").setAttribute("capture", cam.facing);
   show("camera");
   startCamera();
@@ -725,7 +729,7 @@ function stampLines(when, pos, step) {
   var date = pad(when.getDate()) + "." + pad(when.getMonth() + 1) + "." + when.getFullYear();
   var time = pad(when.getHours()) + ":" + pad(when.getMinutes()) + ":" + pad(when.getSeconds());
   return [
-    (cam.type === "in" ? "CHECK-IN" : "CHECK-OUT") + (step === 1 ? " · СТЕНД" : "") +
+    (cam.type === "in" ? "CHECK-IN" : "CHECK-OUT") + (step > 0 ? " · СТЕНД " + step : "") +
       "  " + date + "  " + time + "  " + tzLabel(when),
     S.name + " · " + cam.point,
     pos ? pos.lat.toFixed(5) + ", " + pos.lng.toFixed(5) + "  ±" + Math.round(pos.acc) + " м"
@@ -793,6 +797,18 @@ function finishShot() {
     });
     $("r-img").src = shots[0].data;
     $("r-img2").src = shots[1].data;
+    $("r-extra").innerHTML = "";
+    shots.slice(2).forEach(function (s, j) {
+      var i = j + 2, fig = document.createElement("figure");
+      var img = document.createElement("img"); img.src = s.data; img.alt = "Стенд " + i;
+      var caption = document.createElement("figcaption"); caption.textContent = "Стенд " + i + " · переснять";
+      var remove = document.createElement("button"); remove.textContent = "Удалить"; remove.className = "btn ghost";
+      img.onclick = caption.onclick = function () { pending = null; openStep(i, true); };
+      remove.onclick = function () { shots.splice(i, 1); pending = null; finishShot(); };
+      fig.appendChild(img); fig.appendChild(caption); fig.appendChild(remove); $("r-extra").appendChild(fig);
+    });
+    $("r-add").disabled = shots.length >= 6;
+    $("r-count").textContent = "Фото стенда: " + (shots.length - 1) + " из 5. Все смартфоны должны быть хорошо видны.";
     var when = shots[0].when;
     pending = {
       id: uid(),
@@ -812,7 +828,8 @@ function finishShot() {
       photo: shots[0].data.split(",")[1],
       standAt: shots[1].when.getTime(),
       source2: shots[1].source,
-      photo2: shots[1].data.split(",")[1]
+      photo2: shots[1].data.split(",")[1],
+      standPhotos: shots.slice(1).map(function (s) { return { photo: s.data.split(",")[1], takenAt: s.when.getTime(), source: s.source }; })
     };
     $("r-send").disabled = false;
     $("r-send").textContent = "Отправить";
@@ -821,6 +838,10 @@ function finishShot() {
 
 $("r-f0").onclick = function () { pending = null; openStep(0, true); };
 $("r-f1").onclick = function () { pending = null; openStep(1, true); };
+$("r-add").onclick = function () {
+  if (cam.shots.length >= 6 || !pending) return;
+  pending = null; openStep(cam.shots.length, true);
+};
 
 function drawStamp(c, lines) {
   var g = c.getContext("2d");
