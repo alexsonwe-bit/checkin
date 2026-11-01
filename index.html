@@ -171,6 +171,35 @@ input.in:focus, select.in:focus { border-color: var(--accent); }
 .bar .btn { flex: 1; }
 .bar .btn.ghost { color: #fff; border-color: #444; }
 
+/* Фото прокручиваются отдельно, действия всегда остаются на экране. */
+#review .cam { height: 100%; height: 100dvh; overflow: hidden; }
+#review .review-photos {
+  flex: 1 1 0; min-height: 0; overflow-y: auto; overflow-x: hidden;
+  -webkit-overflow-scrolling: touch; overscroll-behavior-y: contain;
+  padding: calc(8px + env(safe-area-inset-top)) 8px 12px;
+}
+#review .pair { padding: 0; align-content: start; gap: 10px; }
+#review #r-extra:empty { display: none; }
+#review #r-extra { margin-top: 12px; }
+#review .pair figure { min-width: 0; }
+#review .pair img { max-height: 32dvh; }
+#review .pair .btn { padding: 8px 10px; min-height: 40px; font-size: 14px; margin-top: 6px; }
+#review .review-controls {
+  flex: 0 0 auto; display: flex; flex-direction: column; gap: 8px;
+  padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+  border-top: 1px solid #333; background: #111;
+}
+#review .review-add-row { display: flex; align-items: center; gap: 10px; }
+#review #r-add { width: auto; flex: 0 1 auto; min-height: 44px; padding: 9px 12px; font-size: 14px; }
+#review #r-count { flex: 1; min-width: 0; margin: 0; font-size: 12px; line-height: 1.3; color: #bbb; }
+#review .review-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+#review .review-actions .btn { min-width: 0; min-height: 46px; padding: 11px 8px; font-size: 15px; }
+#review .btn.ghost { color: #fff; border-color: #555; }
+@media (max-height: 450px) {
+  #review .review-controls { gap: 6px; padding-top: 6px; }
+  #review .pair img { max-height: 45dvh; }
+}
+
 /* Готово */
 .done { text-align: center; padding-top: 12vh; }
 .done .ok {
@@ -273,16 +302,22 @@ input.in:focus, select.in:focus { border-color: var(--accent); }
 <!-- Проверка снимка -->
 <section class="screen" id="review">
   <div class="cam">
-    <div class="view pair">
+    <div class="review-photos">
+    <div class="pair">
       <figure id="r-f0"><img id="r-img" alt="Селфи"><figcaption><b>Селфи</b> · переснять</figcaption></figure>
       <figure id="r-f1"><img id="r-img2" alt="Стенд"><figcaption><b>Стенд</b> · переснять</figcaption></figure>
     </div>
-    <div class="bar">
       <div id="r-extra" class="pair"></div>
+    </div>
+    <div class="review-controls">
+      <div class="review-add-row">
       <button class="btn ghost" id="r-add">+ Добавить фото стенда</button>
-      <p id="r-count" style="text-align:center;font-size:14px">До 5 фото стенда на отметку</p>
+      <p id="r-count">До 5 фото стенда на отметку</p>
+      </div>
+      <div class="review-actions">
       <button class="btn ghost" id="r-again">Переснять всё</button>
       <button class="btn" id="r-send">Отправить</button>
+      </div>
     </div>
   </div>
 </section>
