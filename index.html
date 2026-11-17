@@ -138,11 +138,6 @@ input.in:focus, select.in:focus { border-color: var(--accent); }
 .cam .tag { font-weight: 700; padding: 6px 12px; border-radius: 999px; font-size: 14px; }
 .cam .tag.in { background: var(--in); } .cam .tag.out { background: var(--out); }
 .cam .x { background: rgba(255,255,255,.18); border: 0; color: #fff; width: 40px; height: 40px; border-radius: 50%; cursor: pointer; }
-.stamp {
-  position: absolute; left: 0; right: 0; bottom: 0; padding: 10px 14px;
-  background: rgba(0,0,0,.55); font-size: 13px; line-height: 1.35; z-index: 2; pointer-events: none;
-}
-.stamp b { font-size: 16px; font-variant-numeric: tabular-nums; }
 .cam .bar {
   flex: none; display: flex; align-items: center; justify-content: space-around;
   padding: 18px 16px calc(18px + env(safe-area-inset-bottom)); background: #000; gap: 12px;
@@ -286,7 +281,6 @@ input.in:focus, select.in:focus { border-color: var(--accent); }
         <button class="x" id="c-close" aria-label="Отмена">✕</button>
       </div>
       <div class="hint" id="c-hint"></div>
-      <div class="stamp" id="c-stamp"></div>
     </div>
     <div class="bar">
       <button class="side hidden" aria-hidden="true"></button>
@@ -366,10 +360,6 @@ function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
 
 // Время, сверенное с сервером: телефонные часы + поправка с последней сверки.
 function now() { return new Date(Date.now() + (S.offset || 0)); }
-function tzLabel(d) {
-  var m = -d.getTimezoneOffset();
-  return "UTC" + (m >= 0 ? "+" : "−") + Math.floor(Math.abs(m) / 60) + (m % 60 ? ":" + pad(Math.abs(m % 60)) : "");
-}
 
 // ---------- Сервер ----------
 
@@ -673,7 +663,7 @@ var STEPS = [
   { facing: "user", title: "Шаг 1 из 2 · Селфи", text: "На фоне промо-зоны, в рабочей форме" },
   { facing: "environment", title: "Шаг 2 из 2 · Стенд", text: "Сфотографируйте стенд со смартфонами целиком" }
 ];
-var cam = { type: "in", stream: null, facing: "user", timer: 0, point: "", step: 0, only: false, shots: [] };
+var cam = { type: "in", stream: null, facing: "user", point: "", step: 0, only: false, shots: [] };
 
 function startShot(type) {
   var point = currentPoint();
@@ -704,9 +694,6 @@ function openStep(step, only) {
   $("c-file").setAttribute("capture", cam.facing);
   show("camera");
   startCamera();
-  clearInterval(cam.timer);
-  cam.timer = setInterval(drawLiveStamp, 500);
-  drawLiveStamp();
 }
 $("b-in").onclick = function () { startShot("in"); };
 $("b-out").onclick = function () { startShot("out"); };
@@ -740,7 +727,6 @@ function stopCamera() {
   cam.stream = null;
 }
 function closeCamera() {
-  clearInterval(cam.timer);
   stopCamera();
 }
 
@@ -759,22 +745,6 @@ $("c-flip").onclick = function () {
   cam.facing = cam.facing === "user" ? "environment" : "user";
   startCamera();
 };
-
-function stampLines(when, pos, step) {
-  var date = pad(when.getDate()) + "." + pad(when.getMonth() + 1) + "." + when.getFullYear();
-  var time = pad(when.getHours()) + ":" + pad(when.getMinutes()) + ":" + pad(when.getSeconds());
-  return [
-    (cam.type === "in" ? "CHECK-IN" : "CHECK-OUT") + (step > 0 ? " · СТЕНД " + step : "") +
-      "  " + date + "  " + time + "  " + tzLabel(when),
-    S.name + " · " + cam.point,
-    pos ? pos.lat.toFixed(5) + ", " + pos.lng.toFixed(5) + "  ±" + Math.round(pos.acc) + " м"
-        : "геолокация: " + (geo.err || "определяется…")
-  ];
-}
-function drawLiveStamp() {
-  var l = stampLines(now(), freshPos(), cam.step);
-  $("c-stamp").innerHTML = "<b>" + esc(l[0]) + "</b><br>" + esc(l[1]) + "<br>" + esc(l[2]);
-}
 
 $("c-shot").onclick = function () {
   var v = $("c-video");
@@ -824,10 +794,8 @@ function finishShot() {
   var pos = freshPos();
   var wait = pos ? Promise.resolve(pos) : Promise.race([locate(), sleep(GEO_WAIT_MS)]).then(freshPos);
   wait.then(function (p) {
-    // Штамп ставим только на новые кадры — переснятый один не трогает второй.
-    shots.forEach(function (s, i) {
+    shots.forEach(function (s) {
       if (s.data) return;
-      drawStamp(s.canvas, stampLines(s.when, p, i));
       s.data = s.canvas.toDataURL("image/jpeg", JPEG_QUALITY);
     });
     $("r-img").src = shots[0].data;
@@ -877,27 +845,6 @@ $("r-add").onclick = function () {
   if (cam.shots.length >= 6 || !pending) return;
   pending = null; openStep(cam.shots.length, true);
 };
-
-function drawStamp(c, lines) {
-  var g = c.getContext("2d");
-  var fs = Math.max(14, Math.round(c.width / 30));
-  var pad = Math.round(fs * 0.7);
-  var lh = Math.round(fs * 1.3);
-  var h = pad * 2 + lh * lines.length;
-  g.fillStyle = "rgba(0,0,0,0.6)";
-  g.fillRect(0, c.height - h, c.width, h);
-  g.fillStyle = "#fff";
-  g.textBaseline = "top";
-  lines.forEach(function (t, i) {
-    g.font = (i === 0 ? "bold " + Math.round(fs * 1.1) : fs) + "px -apple-system, Roboto, 'Segoe UI', Arial, sans-serif";
-    // Длинное имя точки ужимаем по ширине, чтобы не уехало за край.
-    var max = c.width - pad * 2;
-    var s = t;
-    while (g.measureText(s).width > max && s.length > 4) s = s.slice(0, -2);
-    if (s !== t) s = s.slice(0, -1) + "…";
-    g.fillText(s, pad, c.height - h + pad + i * lh);
-  });
-}
 
 $("r-again").onclick = function () {
   pending = null;

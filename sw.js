@@ -1,4 +1,4 @@
-var CACHE = "checkin-v4";
+var CACHE = "checkin-v5";
 var ASSETS = [
   "./",
   "./index.html",
